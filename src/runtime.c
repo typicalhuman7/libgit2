@@ -127,6 +127,11 @@ int git_runtime_init(git_runtime_init_fn init_fns[], size_t cnt)
 	return ret;
 }
 
+int git_runtime_init_count(void)
+{
+	return git_atomic_get(&init_count);
+}
+
 int git_runtime_shutdown(void)
 {
 	int ret;
