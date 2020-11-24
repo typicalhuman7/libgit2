@@ -1,0 +1,64 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: [ master, maint/* ]
+  pull_request:
+    branches: [ master, maint/* ]
+  schedule:
+    - cron: '21 3 * * 1'
+
+env:
+  docker-registry: docker.pkg.github.com
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    # Initializes the CodeQL tools for scanning.
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v1
+      with:
+        languages: 'cpp'
+
+    - name: Download container
+      run: ci/getcontainer.sh focal
+        "${{ github.workspace }}/ci/getcontainer.sh" focal
+      env:
+        DOCKER_REGISTRY: ${{ env.docker-registry }}
+        GITHUB_TOKEN: ${{ secrets.github_token }}
+      working-directory: ${{ env.docker-config-path }}
+
+    - name: Build
+      run: |
+        docker run \
+          --rm \
+          -v "$(pwd):/home/libgit2/source" \
+          -w /home/libgit2/source \
+          -e ASAN_SYMBOLIZER_PATH \
+          -e CC \
+          -e CFLAGS \
+          -e CMAKE_GENERATOR \
+          -e CMAKE_OPTIONS \
+          -e GITTEST_NEGOTIATE_PASSWORD \
+          -e PKG_CONFIG_PATH \
+          -e SKIP_NEGOTIATE_TESTS \
+          -e SKIP_SSH_TESTS \
+          -e TSAN_OPTIONS \
+          ${{ env.docker-registry-container-sha }} \
+          /bin/bash -c "mkdir build && cd build && ../ci/build.sh && ../ci/test.sh"
+      env:
+        CC: clang-10
+        CMAKE_OPTIONS: -DUSE_HTTPS=mbedTLS -DUSE_SHA1=HTTPS -DREGEX_BACKEND=pcre -DDEPRECATE_HARD=ON -DUSE_BUNDLED_ZLIB=ON
+        SKIP_SSH_TESTS: true
+        SKIP_NEGOTIATE_TESTS: true
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v1
